@@ -1,0 +1,19 @@
+log: false # Log all votes to a file and the commands used.
+required-sites: 5 # The number of different sites a player has to vote on in order to increase their streak.
+reset-time: 30 # The time in hours after which a streak is reset.
+online-only: false # If false, run the streak commands on the player whether they are online or not.
+streak: # The commands to execute by the console each time a player votes.
+  1: 
+    - "say %name% voted on %site% 1 time in a row!"
+  2: 
+    - "say %name% voted on %site% 2 times in a row!"
+  3: 
+    - "say %name% voted on %site% 3 times in a row!"
+  4: 
+    - "say %name% voted on %site% 4 times in a row!"
+  5: 
+    - "say %name% voted on %site% 5 times in a row!"
+chance: #Chance commands are now stored in a way similar to that of the streak commands for simplicity's sake; the key being the probability instead of the streak.
+  10: 
+    - "say Lucky you, %name%! You get an extra 50 claim blocks from %site%."
+    - "acb %name% 50"
