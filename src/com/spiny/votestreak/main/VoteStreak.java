@@ -47,10 +47,11 @@ public class VoteStreak extends JavaPlugin {
 		private static final String yamlDataPath = "players";
 		private static final String yamlStreakPath = "streak";
 		private static final String logPath = "log";
-		private static final String resetTimePath = "reset-time";
+		private static final String decreaseTimePath = "decrease-time";
 		private static final String requiredSitesPath = "required-sites";
 		private static final String onlineOnlyPath = "online-only";
 		private static final String chancePath = "chance";
+		private static final String decreaseAmountPath = "decrease-amount";
 		
 		private YamlConfiguration genPlayerYaml() {
 			YamlConfiguration config = new YamlConfiguration();
@@ -80,7 +81,8 @@ public class VoteStreak extends JavaPlugin {
 			VoteStreak.this.chanceCommands = VoteStreak.deserializeCommandSection(VoteStreak.this.getConfig().getConfigurationSection(chancePath));
 			VoteStreak.this.log = VoteStreak.this.getConfig().getBoolean(logPath);
 			VoteStreak.this.onlineOnly = VoteStreak.this.getConfig().getBoolean(onlineOnlyPath);
-			VoteStreak.this.resetTime = VoteStreak.this.getConfig().getInt(resetTimePath);
+			VoteStreak.this.decreaseTime = VoteStreak.this.getConfig().getInt(decreaseTimePath);
+			VoteStreak.this.decreaseAmount = VoteStreak.this.getConfig().getInt(decreaseAmountPath);
 			VoteStreak.this.requiredSites = VoteStreak.this.getConfig().getInt(requiredSitesPath);
 			
 			List<Integer> streak = new ArrayList<Integer>(VoteStreak.this.streakCommands.keySet());
@@ -108,7 +110,8 @@ public class VoteStreak extends JavaPlugin {
 	
 	private boolean log;
 	private boolean onlineOnly;
-	private int resetTime;
+	private int decreaseTime;
+	private int decreaseAmount;
 	private int requiredSites;
 	private int maxStreak;
 	private Map<Integer, List<String>> streakCommands;
@@ -156,7 +159,11 @@ public class VoteStreak extends JavaPlugin {
 			}
 		}
 		
-		if(hourDif > resetTime) spd.streak = 1;
+		if(hourDif > decreaseTime) {
+			spd.streak -= this.decreaseAmount;
+			if(spd.streak < 1) spd.streak = 1;
+		}
+		
 		PlayerData pd = this.getData(p);
 		pd.getSitesVotedOn().add(voteSiteAddress);
 		for(String command : streakCommands.get(spd.streak)) {

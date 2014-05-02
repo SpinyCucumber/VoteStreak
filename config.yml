@@ -1,6 +1,7 @@
 log: false # Log all votes to a file and the commands used.
 required-sites: 5 # The number of different sites a player has to vote on in order to increase their streak.
-reset-time: 30 # The time in hours after which a streak is reset.
+decrease-time: 30 # The time in hours after which a streak is decrease.
+decrease-amount: 2 # The number to decrease a players streak by if and when they hit the decrease time.
 online-only: false # If false, run the streak commands on the player whether they are online or not.
 streak: # The commands to execute by the console each time a player votes.
   1: 
