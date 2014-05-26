@@ -1,6 +1,6 @@
 name: VoteStreak
 main: com.spiny.votestreak.main.VoteStreak
-version: 1.1
-softdepend: [Votifier]
+version: 1.4
+depends: [Votifier]
 commands:
   simvote:

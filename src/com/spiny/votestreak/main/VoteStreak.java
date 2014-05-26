@@ -8,7 +8,10 @@
 package com.spiny.votestreak.main;
 
 import java.io.FileNotFoundException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,6 +24,8 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.spiny.util.file.CentralizedFileManager;
@@ -35,7 +40,7 @@ import com.spiny.votestreak.voteLogger.VoteStreakVoteLogIOMethod;
 import com.spiny.votestreak.voteLogger.VoteStreakVoteLogger;
 import com.spiny.votestreak.voteLogger.VoteStreakVote;
 import com.vexsoftware.votifier.model.Vote;
-import com.vexsoftware.votifier.model.VoteListener;
+import com.vexsoftware.votifier.model.VotifierEvent;
 
 @SuppressWarnings("rawtypes")
 public class VoteStreak extends JavaPlugin {
@@ -75,6 +80,7 @@ public class VoteStreak extends JavaPlugin {
 			
 			streakCommandFilter = new StringFilter(VoteStreak.streakFilterLayers);
 			PlayerUtil.setServer(VoteStreak.this.getServer());
+			VoteStreak.this.getServer().getPluginManager().registerEvents(new VoteStreakVoteListener(), VoteStreak.this);
 			
 			VoteStreak.this.saveDefaultConfig();
 			VoteStreak.this.streakCommands = VoteStreak.deserializeCommandSection(VoteStreak.this.getConfig().getConfigurationSection(yamlStreakPath));
@@ -97,13 +103,33 @@ public class VoteStreak extends JavaPlugin {
 		
 	}
 	
-	public class voteStreakVoteListener implements VoteListener {
+	public class VoteStreakVoteListener implements Listener {
 		
-		public void voteMade(Vote vote) {
-			VoteStreak.this.onVote(PlayerUtil.getPlayerFromName(vote.getUsername()), vote.getAddress(), Integer.valueOf(vote.getTimeStamp()));
+		@EventHandler
+		public void onVotifierEvent(VotifierEvent event) {
+			Vote vote = event.getVote();
+			long unixTime = 0;
+			try {
+				unixTime = Long.parseLong(vote.getTimeStamp());
+			} catch(NumberFormatException e) {
+				unixTime = toCalender(vote.getTimeStamp()).getTimeInMillis() / 1000;
+			}
+			VoteStreak.this.onVote(PlayerUtil.getPlayerFromName(vote.getUsername()), vote.getServiceName(), unixTime);
 		}
 
 	}
+	
+	private static Calendar toCalender(String voteTime) {
+		Calendar cal = Calendar.getInstance();
+		try {
+			cal.setTime(sdf.parse(voteTime));
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		return cal;
+	}
+	
+	private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss -SSSS");
 	
 	private static final String votelogPath = "votes.log";
 	private static final String playerDataPath = "players.yml";
@@ -142,13 +168,13 @@ public class VoteStreak extends JavaPlugin {
 		initializer.start();
 	}
 
-	public void onVote(OfflinePlayer p, String voteSiteAddress, int unixTime) {
+	public void onVote(OfflinePlayer p, String voteSiteAddress, long unixTime) {
 		
 		if(!p.isOnline() && onlineOnly) return;
 		SerializablePlayerData spd = this.getSavedData(p);
 		VoteStreakVote vote = new VoteStreakVote(p.getName(), unixTime, voteSiteAddress);
 		int hourDif = (int) Math.floor((unixTime - spd.lastVoteTime) / 3600);
-		spd.lastVoteTime = unixTime;
+		spd.lastVoteTime = (int) unixTime;
 		
 		for(Entry<Integer, List<String>> e : chanceCommands.entrySet()) {
 			double d = Math.random() * 100;

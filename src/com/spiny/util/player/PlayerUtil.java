@@ -22,6 +22,6 @@ public class PlayerUtil {
 		for(OfflinePlayer player : server.getOfflinePlayers()) {
 			if(player.getName().startsWith(name)) return player;
 		}
-		throw new NullPointerException();
+		return null;
 	}
 }

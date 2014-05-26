@@ -7,12 +7,12 @@ public class VoteStreakVote {
 	
 	private List<String> commandsUsed = new ArrayList<String>();
 	private String username;
-	private int time;
+	private long time;
 	private String address;
 	
-	public VoteStreakVote(String username, int time, String address) {
+	public VoteStreakVote(String username, long unixTime, String address) {
 		this.username = username;
-		this.time = time;
+		this.time = unixTime;
 		this.address = address;
 	}
 	
