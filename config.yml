@@ -18,3 +18,9 @@ chance: #Chance commands are now stored in a way similar to that of the streak c
   10: 
     - "say Lucky you, %name%! You get an extra 50 claim blocks from %site%."
     - "acb %name% 50"
+votecommand:
+  - "&aYou currently have a streak of %streak% and it will expire in %time% hours."
+  - "&aGet voting here: &chttp://justgame.co/servers/mesa/ &e(%sites%/5)"
+  - "&aThere is a streak system. The first day will gain you 10 claim blocks, the second 20, and so on."
+  - "&aIf you vote on all 5 websites, your streak increases by 1, to a max of 10. If you miss a day, your streak decreases by 2."
+  - "&aThere's also 10% chance of getting an extra 50 claim blocks!"

@@ -1,6 +1,9 @@
 name: VoteStreak
 main: com.spiny.votestreak.main.VoteStreak
-version: 1.4
+version: 1.5
 depends: [Votifier]
 commands:
   simvote:
+  vote:
+    description: Provides detailed information about VoteStreak and its features
+    

@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -32,8 +34,7 @@ import com.spiny.util.file.CentralizedFileManager;
 import com.spiny.util.file.IOMethod;
 import com.spiny.util.misc.MapBuilder;
 import com.spiny.util.player.PlayerUtil;
-import com.spiny.util.string.StringFilter;
-import com.spiny.util.string.StringFilterLayer;
+import com.spiny.util.unix.UTS;
 import com.spiny.util.yaml.YamlIOMethod;
 import com.spiny.util.yaml.YamlMapUtil;
 import com.spiny.votestreak.voteLogger.VoteStreakVoteLogIOMethod;
@@ -57,6 +58,7 @@ public class VoteStreak extends JavaPlugin {
 		private static final String onlineOnlyPath = "online-only";
 		private static final String chancePath = "chance";
 		private static final String decreaseAmountPath = "decrease-amount";
+		private static final String voteInfoPath = "votecommand";
 		
 		private YamlConfiguration genPlayerYaml() {
 			YamlConfiguration config = new YamlConfiguration();
@@ -71,14 +73,14 @@ public class VoteStreak extends JavaPlugin {
 		public void start() {
 			
 			VoteStreak.this.getDataFolder().mkdir();
+			VoteStreak.this.saveDefaultConfig();
 			
 			try {
 				VoteStreak.this.savedPlayerData = YamlMapUtil.getValues((ConfigurationSection) fileManager.get(playerDataPath), SerializablePlayerData.class);
 			} catch(FileNotFoundException e) {
 				fileManager.put(playerDataPath, this.genPlayerYaml());
 			}
-			
-			streakCommandFilter = new StringFilter(VoteStreak.streakFilterLayers);
+
 			PlayerUtil.setServer(VoteStreak.this.getServer());
 			VoteStreak.this.getServer().getPluginManager().registerEvents(new VoteStreakVoteListener(), VoteStreak.this);
 			
@@ -87,9 +89,11 @@ public class VoteStreak extends JavaPlugin {
 			VoteStreak.this.chanceCommands = VoteStreak.deserializeCommandSection(VoteStreak.this.getConfig().getConfigurationSection(chancePath));
 			VoteStreak.this.log = VoteStreak.this.getConfig().getBoolean(logPath);
 			VoteStreak.this.onlineOnly = VoteStreak.this.getConfig().getBoolean(onlineOnlyPath);
-			VoteStreak.this.decreaseTime = VoteStreak.this.getConfig().getInt(decreaseTimePath);
+			VoteStreak.this.decreaseTime = UTS.fromHours(VoteStreak.this.getConfig().getInt(decreaseTimePath)).toSeconds();
 			VoteStreak.this.decreaseAmount = VoteStreak.this.getConfig().getInt(decreaseAmountPath);
 			VoteStreak.this.requiredSites = VoteStreak.this.getConfig().getInt(requiredSitesPath);
+			
+			VoteStreak.this.voteInfo = VoteStreak.this.getConfig().getStringList(voteInfoPath);
 			
 			List<Integer> streak = new ArrayList<Integer>(VoteStreak.this.streakCommands.keySet());
 			Collections.sort(streak, new Comparator<Integer>(){
@@ -103,6 +107,36 @@ public class VoteStreak extends JavaPlugin {
 		
 	}
 	
+	public class VoteStreakStringChanger {
+		
+		private static final String ADDRESS = "%site%";
+		private static final String NAME = "%name%";
+		private static final String SITES = "%sites%";
+		private static final String STREAK = "%streak%";
+		private static final String TIME = "%time%";
+		
+		private static final char COLOR_CODE = '&';
+		
+		public String changeForVote(String s, VoteStreakVote v) {
+			String r = ChatColor.translateAlternateColorCodes(COLOR_CODE, s);
+			return r.replaceAll(ADDRESS, v.getAddress()).replaceAll(NAME, v.getUsername());
+		}
+		
+		public String changeForPlayer(String s, OfflinePlayer p) {
+			SerializablePlayerData spd = VoteStreak.this.getSavedData(p);
+			PlayerData pd = VoteStreak.this.getData(p);
+			String r = ChatColor.translateAlternateColorCodes(COLOR_CODE, s);
+			int h = UTS.fromSeconds(VoteStreak.this.decreaseTime).toHours();
+			int c = UTS.currentTime().toHours();
+			int l = UTS.fromSeconds(spd.lastVoteTime).toHours();
+			int d = c - l;
+			return r.replaceAll(SITES, String.valueOf(pd.getSitesVotedOn().size()))
+					.replaceAll(STREAK, String.valueOf(spd.streak))
+					.replaceAll(TIME, String.valueOf(h - d));
+		}
+		
+	}
+	
 	public class VoteStreakVoteListener implements Listener {
 		
 		@EventHandler
@@ -112,27 +146,34 @@ public class VoteStreak extends JavaPlugin {
 			try {
 				unixTime = Long.parseLong(vote.getTimeStamp());
 			} catch(NumberFormatException e) {
-				unixTime = toCalender(vote.getTimeStamp()).getTimeInMillis() / 1000;
+				unixTime = UTS.fromCalender(toCalender(vote.getTimeStamp())).toSeconds();
 			}
-			VoteStreak.this.onVote(PlayerUtil.getPlayerFromName(vote.getUsername()), vote.getServiceName(), unixTime);
+			OfflinePlayer p = PlayerUtil.getPlayerFromName(vote.getUsername());
+			if(p == null) return;
+			VoteStreak.this.onVote(p, vote.getServiceName(), unixTime);
 		}
-
+		
 	}
 	
 	private static Calendar toCalender(String voteTime) {
 		Calendar cal = Calendar.getInstance();
 		try {
-			cal.setTime(sdf.parse(voteTime));
+			cal.setTime(SDF.parse(voteTime));
 		} catch (ParseException e) {
 			e.printStackTrace();
 		}
 		return cal;
 	}
 	
-	private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss -SSSS");
+	private static final SimpleDateFormat SDF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss -SSSS");
 	
 	private static final String votelogPath = "votes.log";
 	private static final String playerDataPath = "players.yml";
+	
+	private static final String COMMAND_FAIL_SENDER = ChatColor.RED + "You must be a player to use this command.";
+	
+	private static VoteStreak recentInstance;
+	private static String name;
 	
 	private boolean log;
 	private boolean onlineOnly;
@@ -142,6 +183,9 @@ public class VoteStreak extends JavaPlugin {
 	private int maxStreak;
 	private Map<Integer, List<String>> streakCommands;
 	private Map<Integer, List<String>> chanceCommands;
+	private List<String> voteInfo;
+	
+	private VoteStreakStringChanger stringChanger = new VoteStreakStringChanger();
 	
 	public static Map<String, IOMethod> ioMethodConfig = new MapBuilder<String, IOMethod>(new HashMap<String, IOMethod>()).withEntry("yml", new YamlIOMethod()).withEntry("log", new VoteStreakVoteLogIOMethod()).build();
 	
@@ -153,10 +197,31 @@ public class VoteStreak extends JavaPlugin {
 	private Map<String, SerializablePlayerData> savedPlayerData = new HashMap<String, SerializablePlayerData>();
 	private Map<OfflinePlayer, PlayerData> playerData = new HashMap<OfflinePlayer, PlayerData>();
 	private CentralizedFileManager fileManager = new CentralizedFileManager(this.getDataFolder(), ioMethodConfig, "config.yml");
-	private StringFilter streakCommandFilter;
-
+	
+	public static void updateRecentInstanceRemotely() {
+		recentInstance = (VoteStreak) Bukkit.getServer().getPluginManager().getPlugin(name);
+	}
+	
+	public static SerializablePlayerData getSavedDataRemotely(OfflinePlayer p) {
+		return recentInstance.getSavedData(p);
+	}
+	
+	private static Map<Integer, List<String>> deserializeCommandSection(ConfigurationSection c) {
+		Map<Integer, List<String>> m = new HashMap<Integer, List<String>>();
+		for(String s : c.getValues(false).keySet()) {
+			m.put(Integer.valueOf(s), c.getStringList(s));
+		}
+		return m;
+	}
+	
+	private void updateRecentInstance() {
+		recentInstance = this;
+		name = this.getName();
+	}
+	
 	public void onEnable() {
 		initializer = new VoteStreakInitializer();
+		this.updateRecentInstance();
 	}
 
 	public void onDisable() {
@@ -173,32 +238,32 @@ public class VoteStreak extends JavaPlugin {
 		if(!p.isOnline() && onlineOnly) return;
 		SerializablePlayerData spd = this.getSavedData(p);
 		VoteStreakVote vote = new VoteStreakVote(p.getName(), unixTime, voteSiteAddress);
-		int hourDif = (int) Math.floor((unixTime - spd.lastVoteTime) / 3600);
-		spd.lastVoteTime = (int) unixTime;
 		
 		for(Entry<Integer, List<String>> e : chanceCommands.entrySet()) {
 			double d = Math.random() * 100;
 			if(d <= e.getKey()) {
 				for(String command : e.getValue()) {
-					this.evalCommand(command, vote, p.getName(), voteSiteAddress);
+					this.evalCommand(command, vote);
 				}
 			}
 		}
 		
-		if(hourDif > decreaseTime) {
+		PlayerData pd = this.getData(p);
+		pd.getSitesVotedOn().add(voteSiteAddress);
+		
+		for(String command : streakCommands.get(spd.streak)) {
+			this.evalCommand(command, vote);
+		}
+		
+		if(pd.getSitesVotedOn().size() >= requiredSites && spd.streak < maxStreak) {
+			spd.streak++;
+			pd.getSitesVotedOn().clear();
+		} else if(unixTime - spd.lastVoteTime > decreaseTime) {
 			spd.streak -= this.decreaseAmount;
 			if(spd.streak < 1) spd.streak = 1;
 		}
 		
-		PlayerData pd = this.getData(p);
-		pd.getSitesVotedOn().add(voteSiteAddress);
-		for(String command : streakCommands.get(spd.streak)) {
-			this.evalCommand(command, vote, p.getName(), voteSiteAddress);
-		}
-		if(pd.getSitesVotedOn().size() >= requiredSites && spd.streak < maxStreak) {
-			spd.streak++;
-			pd.getSitesVotedOn().clear();
-		}
+		spd.lastVoteTime = (int) unixTime;
 		
 		if(!log) return;
 		VoteStreakVoteLogger logger = new VoteStreakVoteLogger();
@@ -211,55 +276,48 @@ public class VoteStreak extends JavaPlugin {
 		
 	}
 
-	public SerializablePlayerData getSavedData(OfflinePlayer p) {
+	private SerializablePlayerData getSavedData(OfflinePlayer p) {
 		String id = p.getUniqueId().toString();
 		if(!savedPlayerData.containsKey(id)) initSavedData(p);
 		return (SerializablePlayerData) savedPlayerData.get(id);
 	}
 	
-	public PlayerData getData(OfflinePlayer p) {
+	private PlayerData getData(OfflinePlayer p) {
 		if(!playerData.containsKey(p)) initData(p);
 		return playerData.get(p);
 	}
 
-	public void initSavedData(OfflinePlayer p) {
-		SerializablePlayerData d = new SerializablePlayerData(1, p.getName(), 0);
+	private void initSavedData(OfflinePlayer p) {
+		SerializablePlayerData d = new SerializablePlayerData(1, p.getName(), UTS.currentTime().toSeconds());
 		savedPlayerData.put(p.getUniqueId().toString(), d);
 	}
 	
-	public void initData(OfflinePlayer p) {
+	private void initData(OfflinePlayer p) {
 		playerData.put(p, new PlayerData());
 	}
 	
-	public static StringFilterLayer[] streakFilterLayers = new StringFilterLayer[]{new StringFilterLayer<String>(){
-		public String filter(String username, String s) {
-			s = s.replaceAll("%name%", username);
-			return s;
-		}
-	}, new StringFilterLayer<String>(){
-		public String filter(String address, String s) {
-			s = s.replaceAll("%site%", address);
-			return s;
-		}
-	}};
-	
 	public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-		if(!command.getName().equalsIgnoreCase("simvote")) return false;
-		OfflinePlayer p = PlayerUtil.getPlayerFromName(args[0]);
-		this.onVote(p, args[1], Integer.valueOf(args[2]) * 3600);
-		return true;
-	}
-	
-	public static Map<Integer, List<String>> deserializeCommandSection(ConfigurationSection c) {
-		Map<Integer, List<String>> m = new HashMap<Integer, List<String>>();
-		for(String s : c.getValues(false).keySet()) {
-			m.put(Integer.valueOf(s), c.getStringList(s));
+		switch(command.getName()) {
+			case "simvote": {
+				this.onVote(PlayerUtil.getPlayerFromName(args[0]), args[1], Long.valueOf(UTS.currentTime().sub(UTS.fromHours(Integer.valueOf(args[2]))).toSeconds()));
+				return true;
+			} case "vote": {
+				if(!(sender instanceof OfflinePlayer)) {
+					sender.sendMessage(COMMAND_FAIL_SENDER);
+					return false;
+				}
+				OfflinePlayer p = (OfflinePlayer) sender;
+				for(String s : voteInfo) {
+					sender.sendMessage(stringChanger.changeForPlayer(s, p));
+				}
+			} default: {
+				return false;
+			}
 		}
-		return m;
 	}
 	
-	private void evalCommand(String command, VoteStreakVote v, String senderName, String voteSiteAddress) {
-		command = streakCommandFilter.filter(command, senderName, voteSiteAddress);
+	private void evalCommand(String command, VoteStreakVote v) {
+		command = stringChanger.changeForVote(command, v);
 		v.addCommand(command);
 		this.getServer().dispatchCommand(this.getServer().getConsoleSender(), command);
 	}

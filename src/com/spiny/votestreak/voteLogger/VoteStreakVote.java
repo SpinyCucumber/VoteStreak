@@ -16,6 +16,22 @@ public class VoteStreakVote {
 		this.address = address;
 	}
 	
+	public List<String> getCommandsUsed() {
+		return commandsUsed;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public long getTime() {
+		return time;
+	}
+
+	public String getAddress() {
+		return address;
+	}
+
 	public void addCommand(String c) {
 		commandsUsed.add(c);
 	}
