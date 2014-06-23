@@ -131,7 +131,7 @@ public class VoteStreak extends JavaPlugin {
 			int l = UTS.fromSeconds(spd.lastVoteTime).toHours();
 			int d = c - l;
 			return r.replaceAll(SITES, String.valueOf(pd.getSitesVotedOn().size()))
-					.replaceAll(STREAK, String.valueOf(spd.streak))
+					.replaceAll(STREAK, String.valueOf(spd.streak - 1))
 					.replaceAll(TIME, String.valueOf(h - d));
 		}
 		
